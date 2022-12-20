@@ -32,7 +32,6 @@ class GowinPlatform(TemplatedPlatform):
     size    = abstractproperty()
     package = abstractproperty()
     speed   = abstractproperty()
-    board   = abstractproperty()
 
     @property
     def _part(self):
@@ -119,7 +118,7 @@ class GowinPlatform(TemplatedPlatform):
     def __init__(self, *, toolchain="Apicula"):
         super().__init__()
 
-        assert toolchain in ("Apicula")
+        assert toolchain in ("Apicula",)
         self.toolchain = toolchain
 
     @property
