@@ -180,12 +180,16 @@ class GowinPlatform(TemplatedPlatform):
             i = Signal(pin.width, name="{}_xdr_i".format(pin.name))
         if "o" in pin.dir:
             o = Signal(pin.width, name="{}_xdr_o".format(pin.name))
+        if pin.dir in ("oe", "io"):
+            t = Signal(1,         name="{}_xdr_t".format(pin.name))
 
         if pin.xdr == 0:
             if "i" in pin.dir:
                 i = pin_i
             if "o" in pin.dir:
                 o = pin_o
+            if pin.dir in ("oe", "io"):
+                t = ~pin.oe
 
         return (i, o, t)
 
@@ -214,3 +218,33 @@ class GowinPlatform(TemplatedPlatform):
                 o_O=port.io[bit]
             )
         return m
+
+    def get_tristate(self, pin, port, attrs, invert):
+        self._check_feature("single-ended tristate", pin, attrs,
+                            valid_xdrs=(0, 1, 2), valid_attrs=True)
+        m = Module()
+        i, o, t = self._get_io_buffer(m, pin, attrs.get("IOSTANDARD"),
+                                      o_invert=invert)
+        for bit in range(pin.width):
+            m.submodules["{}_{}".format(pin.name, bit)] = Instance("TBUF",
+                i_OEN=t,
+                i_I=o[bit],
+                o_O=port.io[bit]
+            )
+        return m
+
+    def get_input_output(self, pin, port, attrs, invert):
+        self._check_feature("single-ended input/output", pin, attrs,
+                            valid_xdrs=(0, 1, 2), valid_attrs=True)
+        m = Module()
+        i, o, t = self._get_io_buffer(m, pin, attrs.get("IOSTANDARD"),
+                                      i_invert=invert, o_invert=invert)
+        for bit in range(pin.width):
+            m.submodules["{}_{}".format(pin.name, bit)] = Instance("IOBUF",
+                i_OEN=t,
+                i_I=o[bit],
+                o_O=i[bit],
+                io_IO=port.io[bit]
+            )
+        return m
+
