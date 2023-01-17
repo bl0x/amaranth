@@ -1,8 +1,10 @@
 from abc import abstractproperty
 
 from ..hdl import *
-from ..lib.cdc import ResetSynchronizer
 from ..build import *
+
+# Acknowledgments:
+#   Parts of this file originate from https://github.com/tcjie/Gowin
 
 
 __all__ = ["GowinPlatform"]
@@ -150,7 +152,41 @@ class GowinPlatform(TemplatedPlatform):
         # Use the defined Clock resource.
         return super().default_clk_constraint
 
-    def _get_io_buffer(self, m, pin, io_type, i_invert=False, o_invert=False):
+    def _get_xdr_buffer(self, m, pin, i_invert=False, o_invert=False):
+
+        def get_ireg(clk,d,q):
+            for bit in range(len(q)):
+                m.submodules += Instance("DFF",
+                    i_clk = clk,
+                    i_d = d[bit],
+                    o_q = q[bit],
+                )
+
+        def get_oreg(clk,d,q):
+            for bit in range(len(q)):
+                m.submodules += Instance("DFF",
+                    i_clk = clk,
+                    i_d = d[bit],
+                    o_q = q[bit]
+                )
+
+        def get_iddr(clk,d,q0,q1):
+            for bit in range(len(d)):
+                m.submodules += Instance("IDDR",
+                    i_clk = clk,
+                    i_d = d[bit],
+                    o_q0 = q0[bit],
+                    o_q1 = q1[bit]
+                )
+
+        def get_oddr(clk,d0,d1,q):
+            for bit in range(len(1)):
+                m.submodules += Instance("ODDR",
+                    i_clk = clk,
+                    i_d0 = d0[bit],
+                    i_d1 = d1[bit],
+                    o_q0 = q[bit],
+                )
 
         def get_ineg(y, invert):
             if invert:
@@ -170,9 +206,17 @@ class GowinPlatform(TemplatedPlatform):
 
 
         if "i" in pin.dir:
-            pin_i = get_ineg(pin.i, i_invert)
+            if pin.xdr < 2:
+                pin_i = get_ineg(pin.i, i_invert)
+            elif pin.xdr == 2:
+                pin_i0 = get_ineg(pin.i0, i_invert)
+                pin_i1 = get_ineg(pin.i1, i_invert)
         if "o" in pin.dir:
-            pin_o = get_oneg(pin.o, o_invert)
+            if pin.xdr < 2:
+                pin_o = get_oneg(pin.o, o_invert)
+            elif pin.xdr == 2:
+                pin_o0 = get_oneg(pin.o0, o_invert)
+                pin_o1 = get_oneg(pin.o1, o_invert)
 
         i = o = t = None
 
@@ -190,6 +234,22 @@ class GowinPlatform(TemplatedPlatform):
                 o = pin_o
             if pin.dir in ("oe", "io"):
                 t = ~pin.oe
+        elif pin.xdr == 1:
+            if "i" in pin.dir:
+                get_ireg(pin.i_clk, i, pin_i)
+            if "o" in pin.dir:
+                get_oreg(pin.o_clk, pin_o, o)
+            if pin.dir in ("oe", "io"):
+                get_oreg(pin.o_clk, ~pin.oe,t)
+        elif pin.xdr == 2:
+            if "i" in pin.dir:
+                get_iddr(pin.i_clk, i, pin_i0, pin_i1)
+            if "o" in pin.dir:
+                get_oddr(pin.o_clk, pin_o0, pin_o1, o)
+            if pin.dir in ("oe", "io"):
+                get_oreg(pin.o_clk, ~pin.oe, t)
+        else:
+            assert False
 
         return (i, o, t)
 
@@ -197,8 +257,7 @@ class GowinPlatform(TemplatedPlatform):
         self._check_feature("single-ended input", pin, attrs,
                             valid_xdrs=(0, 1, 2), valid_attrs=True)
         m = Module()
-        i, o, t = self._get_io_buffer(m, pin, attrs.get("IO_TYPE"),
-                                      i_invert=invert)
+        i, o, t = self._get_xdr_buffer(m, pin, i_invert=invert)
         for bit in range(pin.width):
             m.submodules["{}_{}".format(pin.name, bit)] = Instance("IBUF",
                 i_I=port.io[bit],
@@ -210,8 +269,7 @@ class GowinPlatform(TemplatedPlatform):
         self._check_feature("single-ended output", pin, attrs,
                             valid_xdrs=(0, 1, 2), valid_attrs=True)
         m = Module()
-        i, o, t = self._get_io_buffer(m, pin, port.io, attrs.get("IO_TYPE"),
-                                      o_invert=invert)
+        i, o, t = self._get_xdr_buffer(m, pin, port.io, o_invert=invert)
         for bit in range(pin.width):
             m.submodules["{}_{}".format(pin.name, bit)] = Instance("OBUF",
                 i_I=o[bit],
@@ -223,8 +281,7 @@ class GowinPlatform(TemplatedPlatform):
         self._check_feature("single-ended tristate", pin, attrs,
                             valid_xdrs=(0, 1, 2), valid_attrs=True)
         m = Module()
-        i, o, t = self._get_io_buffer(m, pin, attrs.get("IOSTANDARD"),
-                                      o_invert=invert)
+        i, o, t = self._get_xdr_buffer(m, pin, o_invert=invert)
         for bit in range(pin.width):
             m.submodules["{}_{}".format(pin.name, bit)] = Instance("TBUF",
                 i_OEN=t,
@@ -237,8 +294,7 @@ class GowinPlatform(TemplatedPlatform):
         self._check_feature("single-ended input/output", pin, attrs,
                             valid_xdrs=(0, 1, 2), valid_attrs=True)
         m = Module()
-        i, o, t = self._get_io_buffer(m, pin, attrs.get("IOSTANDARD"),
-                                      i_invert=invert, o_invert=invert)
+        i, o, t = self._get_xdr_buffer(m, pin, i_invert=invert, o_invert=invert)
         for bit in range(pin.width):
             m.submodules["{}_{}".format(pin.name, bit)] = Instance("IOBUF",
                 i_OEN=t,
@@ -248,3 +304,57 @@ class GowinPlatform(TemplatedPlatform):
             )
         return m
 
+    def get_diff_input(self, pin, port, attrs, invert):
+        self._check_feature("differential input", pin, attrs,
+                            valid_xdrs=(0, 1, 2), valid_attrs=True)
+        m = Module()
+        i, o, t = self._get_xdr_buffer(m, pin, i_invert=invert)
+        for bit in range(pin.wodth):
+            m.submodules["{}_{}".format(pin.name,bit)] = Instance("TLVDS_IBUF",
+                i_I=port.p[bit],
+                i_IB=port.n[bit],
+                o_O=i[bit]
+            )
+        return m
+
+    def get_diff_output(self, pin, port, attrs, invert):
+        self._check_feature("differential output", pin, attrs,
+                            valid_xdrs=(0, 1, 2), valid_attrs=True)
+        m = Module()
+        i, o, t = self._get_xdr_buffer(m, pin, o_invert=invert)
+        for bit in range(pin.width):
+            m.submodules["{}_{}".format(pin.name,bit)] = Instance("TLVDS_OBUF",
+                i_I=o[bit],
+                o_O=port.p[bit],
+                o_OB=port.n[bit],
+            )
+        return m
+
+    def get_diff_tristate(self, pin, port, attrs, invert):
+        self._check_feature("differential tristate", pin, attrs,
+                            valid_xdrs=(0, 1, 2), valid_attrs=True)
+        m = Module()
+        i, o, t = self._get_xdr_buffer(m, pin, o_invert=invert)
+        for bit in range(pin.width):
+            m.submodules["{}_{}".format(pin.name,bit)] = Instance("TLVDS_TBUF",
+                i_OEN=t,
+                i_I=o[bit],
+                o_O=port.p[bit],
+                o_OB=port.n[bit]
+            )
+        return m
+
+    def get_diff_input_output(self, pin, port, atttr, invert):
+        self._check_feature("differential input/output", pin, attrs,
+                            valid_xdrs=(0, 1, 2), valid_attrs=True)
+        m = Module()
+        i, o, t = self._get_xdr_buffer(m, pin, i_invert=invert, o_invert=invert)
+        for bit in range(pin.width):
+            m.submodules["{}_{}".format(pin.name,bit)] = Instance("TLVDS_IOBUF",
+                i_OEN=t,
+                i_I=o[bit],
+                o_O=i[bit],
+                io_IO=port.p[bit],
+                io_IOB=port.n[bit]
+            )
+        return m
