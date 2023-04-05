@@ -145,7 +145,7 @@ class GowinPlatform(TemplatedPlatform):
             add_file -type verilog {{name}}.v
             add_file -type cst {{name}}.cst
             add_file -type sdc {{name}}.sdc
-            set_device -name {{platform._part}}
+            set_device -name {{platform.family}}-{{platform.size}} {{platform._part}}
             set_option -verilog_std v2001 -print_all_synthesis_warning 1 -show_all_warn 1
             {{get_override("add_options")|default("# (add_options placeholder)")}}
             run all
@@ -157,6 +157,7 @@ class GowinPlatform(TemplatedPlatform):
         {{invoke_tool("gw_sh")}}
             {{name}}.tcl
         """,
+        "cp impl/pnr/project.fs {{name}}.fs"
     }
 
     def __init__(self, *, toolchain="Apicula"):
