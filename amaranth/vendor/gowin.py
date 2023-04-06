@@ -41,13 +41,14 @@ class GowinPlatform(TemplatedPlatform):
 
     toolchain = None # selected when creating platform
 
-    device  = abstractproperty()
-    series  = abstractproperty()
-    voltage = abstractproperty()
-    size    = abstractproperty()
-    package = abstractproperty()
-    speed   = abstractproperty()
-    osc_div = abstractproperty()
+    device    = abstractproperty()
+    series    = abstractproperty()
+    subseries = abstractproperty()
+    voltage   = abstractproperty()
+    size      = abstractproperty()
+    package   = abstractproperty()
+    speed     = abstractproperty()
+    osc_div   = abstractproperty()
 
     @property
     def _part(self):
@@ -213,6 +214,10 @@ class GowinPlatform(TemplatedPlatform):
 
     _gowin_required_tools = ["gw_sh"]
 
+    @property
+    def _device_name(self):
+        return "{}-{}{}".format(self.series, self.size, self.subseries)
+
     _gowin_file_templates = {
         **TemplatedPlatform.build_script_templates,
         **_common_file_templates,
@@ -224,7 +229,7 @@ class GowinPlatform(TemplatedPlatform):
             add_file -type verilog {{name}}.v
             add_file -type cst {{name}}.cst
             add_file -type sdc {{name}}.sdc
-            set_device -name {{platform.series}}-{{platform.size}} {{platform._part}}
+            set_device -name {{platform._device_name}} {{platform._part}}
             set_option -verilog_std v2001 -print_all_synthesis_warning 1 -show_all_warn 1
             {{get_override("add_options")|default("# (add_options placeholder)")}}
             run all
