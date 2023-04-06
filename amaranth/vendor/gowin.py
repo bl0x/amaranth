@@ -28,7 +28,15 @@ class GowinPlatform(TemplatedPlatform):
 
     .. rubric:: Gowin toolchain
 
-    TODO
+    Required tools:
+        * ``gw_sh``
+
+    The environment is populated by running the script specified in the environment variable
+    ``AMARANTH_ENV_Gowin``, if present.
+
+    Build products:
+        * ``{{name}}.fs``: binary bitstream.
+
     """
 
     toolchain = None # selected when creating platform
@@ -223,13 +231,13 @@ class GowinPlatform(TemplatedPlatform):
         """,
     }
 
-    _gowin_command_templates = {
+    _gowin_command_templates = [
         r"""
         {{invoke_tool("gw_sh")}}
             {{name}}.tcl
         """,
         "cp impl/pnr/project.fs {{name}}.fs"
-    }
+    ]
 
     def __init__(self, *, toolchain="Apicula"):
         super().__init__()
