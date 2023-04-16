@@ -206,6 +206,7 @@ class GowinPlatform(TemplatedPlatform):
             {{verbose("-v")}}
             -d {{platform.device}}
             -o {{name}}.fs
+            {{get_override("gowin_pack_opts")|options}}
             {{name}}.json
         """
     ]
