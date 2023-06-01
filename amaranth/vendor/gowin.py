@@ -108,6 +108,9 @@ class GowinPlatform(TemplatedPlatform):
             assert False
         return props
 
+    @property
+    def osc_freq(self):
+        return self._osc_props["freq"]
 
     @property
     def _oscillator(self):
@@ -197,13 +200,12 @@ class GowinPlatform(TemplatedPlatform):
             --device {{platform._part}}
             --family {{platform.device}}
             --json {{name}}.json
-            --freq 27
+            --freq {{platform.default_clk_frequency/1_000_000}}
             --cst {{name}}.cst
             --write {{name}}.json
         """,
         r"""
         {{invoke_tool("gowin_pack")}}
-            {{verbose("-v")}}
             -d {{platform.device}}
             -o {{name}}.fs
             {{get_override("gowin_pack_opts")|options}}
